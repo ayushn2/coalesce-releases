@@ -2,6 +2,11 @@
 
 Prebuilt binaries for the Coalesce node. Source code is not published here.
 
+Coalesce is a **multi-party payment channel**: a group shares one on-chain Bitcoin
+UTXO (a "hyperedge") and pays each other off-chain, settling to the blockchain only
+on open/close. There is no server and no coordinator — every node holds only its own
+key share and wallet.
+
 ## Install
 
 ```bash
@@ -11,3 +16,117 @@ curl -sSL https://raw.githubusercontent.com/ayushn2/coalesce-releases/main/insta
 Detects your OS/arch and installs `coalesce-node` to `/usr/local/bin`.
 
 Windows users: download the `.exe` asset directly from the [Releases](https://github.com/ayushn2/coalesce-releases/releases) page.
+
+## Prerequisite: you need a live signet Bitcoin node
+
+Coalesce runs on Bitcoin **signet** (free test coins, not mainnet). For any real
+use — funding, sending, closing a channel — your machine needs its own **running**
+`bitcoind -signet` instance; Coalesce does not include or manage this for you.
+
+```bash
+# Install Bitcoin Core from https://bitcoincore.org/en/download, then:
+bitcoind -signet -daemon
+
+bitcoin-cli -signet createwallet mywallet
+bitcoin-cli -signet -rpcwallet=mywallet getnewaddress
+# Fund the address from a signet faucet (search "bitcoin signet faucet")
+```
+
+Coalesce authenticates to your node automatically via its cookie file — no RPC
+username/password needed for a default `bitcoind -signet` setup.
+
+> You can try Coalesce **without** any Bitcoin node using the local demo below —
+> it uses simulated balances. A live signet node is only required once you want to
+> move real signet BTC.
+
+## Quick local demo (no Bitcoin needed)
+
+Runs a 3-member hyperedge on one machine with pretend balances:
+
+```bash
+coalesce-node init -dir ./demo -nodes 3 -base-port 9000 -balance 100000000
+
+# in 3 separate terminals:
+coalesce-node run -config ./demo/node0.json
+coalesce-node run -config ./demo/node1.json
+coalesce-node run -config ./demo/node2.json
+```
+
+At any node's prompt: `bal`, `send node1 5000`, `root`, `bal`, `quit`.
+
+## Real use on signet
+
+```
+   set up keys   →   put money in   →   transact   →   take money out
+   (keygen/init)     (fund/dfund)       (run)          (close/coopclose)
+```
+
+1. **Get a signet node + funded wallet** — see prerequisite above.
+2. **One member creates the shareless cluster**, listing every participant's real
+   address:
+   ```bash
+   coalesce-node init -dir ./cluster -nodes 3 -distributed \
+     -hosts "1.2.3.4,5.6.7.8,9.10.11.12"
+   ```
+   This produces per-member bundles (`nodeI.json` + `nodeI.key`) — send each
+   participant only their own bundle.
+3. **Each participant starts their own node**, pointed at their own signet node:
+   ```bash
+   export COALESCE_BTC_NET=signet
+   export COALESCE_BTC_HOST=localhost:38332
+   coalesce-node run -config nodeI.json -wallet mywallet -enforce
+   ```
+   `-enforce` turns on self-protection — recommended for real use.
+4. **Once everyone is running**, any member types `keygen` to generate the group
+   key via a dealerless, distributed protocol — no machine ever holds the full key.
+   **Restart every node** afterward to load the new share.
+5. **Fund the channel** — any member types `dfund <sats>` (e.g. `dfund 40000`);
+   each member deposits from their own wallet. **Restart every node** afterward to
+   open the funded channel.
+6. **Transact** at the prompt: `bal`, `send <peer> <sats>`, `root`.
+7. **Exit / take money out** — any member types `coopclose`; everyone co-signs one
+   closing transaction paying each member their current balance to their own wallet.
+
+## Command reference
+
+**CLI subcommands** (`coalesce-node <cmd> -h` for flags):
+
+| Command | What it does |
+|---|---|
+| `init` | Generate cluster configs. `-distributed` = shareless (recommended); `-hosts`; `-nodes`, `-base-port`, `-balance`. |
+| `run` | Run a node. `-config <file>` (required); `-wallet <name>` (enables funding); `-enforce` (self-protection). |
+| `fund` / `close` | Coordinator-run funding/closing — one machine holds all wallets, for demos/testing only. Prefer `dfund`/`coopclose` for real use. |
+
+**Prompt commands** inside `run`:
+
+| Command | What it does |
+|---|---|
+| `keygen` | Generate the group key distributed-ly (shareless clusters) |
+| `dfund [minDeposit] [fee]` | Open the channel — each member deposits from its own wallet |
+| `send <peer> <sats>` | Pay another member |
+| `root` | Finalize a checkpoint (locks in payments) |
+| `bal` | Show balances |
+| `coopclose [fee]` | Cooperatively close to real payouts |
+| `cond <connector> <destHE> <receiver> <sats> <timeout>` | Multi-hop payment across hyperedges |
+| `watch <heID> <txid> <vout>` | Watch a funding output on-chain |
+| `quit` | Shut down (Ctrl-C also works) |
+
+**Environment variables:**
+
+| Variable | Meaning |
+|---|---|
+| `COALESCE_BTC_NET` | `signet` (or `regtest`) |
+| `COALESCE_BTC_HOST` | your bitcoind RPC host, e.g. `localhost:38332` |
+| `COALESCE_BTC_COOKIE` | override the cookie path (default: the standard signet cookie) |
+| `COALESCE_BTC_USER` / `COALESCE_BTC_PASS` | RPC user/pass (only if you don't use cookie auth) |
+
+## Safety notes
+
+- **Signet only, experimental.** Free test coins. Do not use mainnet BTC.
+- Funds are safe as long as **more than two-thirds** of members are honest (standard
+  threshold assumption). A single honest node can always recover its own money.
+- Run with `-enforce` for real use so your node defends itself automatically.
+- Keep your `nodeX.key` file private — it is your identity in the group.
+- This distribution is binary-only: since the source isn't published yet, you are
+  trusting that this binary matches its claimed behavior. Source will be made public
+  in the future.
