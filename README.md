@@ -79,10 +79,15 @@ At any node's prompt: `bal`, `send node1 5000`, `root`, `bal`, `quit`.
    `-enforce` turns on self-protection — recommended for real use.
 4. **Once everyone is running**, any member types `keygen` to generate the group
    key via a dealerless, distributed protocol — no machine ever holds the full key.
-   **Restart every node** afterward to load the new share.
-5. **Fund the channel** — any member types `dfund <sats>` (e.g. `dfund 40000`);
-   each member deposits from their own wallet. **Restart every node** afterward to
-   open the funded channel.
+   Each node automatically restarts itself afterward to load its new share.
+5. **Fund the channel** — every member independently types `dfund <sats>` at their
+   own prompt with **whatever amount they want to commit** (e.g. `dfund 40000`,
+   `dfund 2300000` — any value up to their wallet's spendable balance, not just
+   one contribution amount decided by a single member). If your wallet doesn't
+   already hold a coin of exactly that size, your node automatically prepares one
+   on-chain first, then waits for it to confirm before proceeding — you'll see this
+   happen in your node's output. Once every member has run `dfund`, each node
+   automatically restarts to open the funded channel.
 6. **Transact** at the prompt: `bal`, `send <peer> <sats>`, `root`.
 7. **Exit / take money out** — any member types `coopclose`; everyone co-signs one
    closing transaction paying each member their current balance to their own wallet.
@@ -102,7 +107,7 @@ At any node's prompt: `bal`, `send node1 5000`, `root`, `bal`, `quit`.
 | Command | What it does |
 |---|---|
 | `keygen` | Generate the group key distributed-ly (shareless clusters) |
-| `dfund [minDeposit] [fee]` | Open the channel — each member deposits from its own wallet |
+| `dfund <amountSat> [fee]` | Commit YOUR OWN contribution (any amount, in sat) from your own wallet |
 | `send <peer> <sats>` | Pay another member |
 | `root` | Finalize a checkpoint (locks in payments) |
 | `bal` | Show balances |
