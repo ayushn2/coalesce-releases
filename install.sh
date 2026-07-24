@@ -67,7 +67,10 @@ Next steps:
        bitcoind -signet
   2. Create a distributed cluster:
        coalesce-node init -dir ./cluster -nodes 3 -distributed -hosts "host1:9000,host2:9000,host3:9000"
-  3. Start your node:
+  3. Start your node (all members, without -enforce until funded):
+       coalesce-node run -config ./cluster/node0.json -wallet <yourwallet>
+  4. At the prompt: keygen, then restart, then dfund to fund the cluster.
+  5. Once funded, restart with -enforce for automatic on-chain protection:
        coalesce-node run -config ./cluster/node0.json -wallet <yourwallet> -enforce
 
 Run 'coalesce-node --help' any time to see all subcommands.
