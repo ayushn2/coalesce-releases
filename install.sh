@@ -35,7 +35,7 @@ if [ -z "$download_url" ]; then
 fi
 
 tmp="$(mktemp)"
-echo "Downloading ${download_url}..."
+echo "Downloading Coalesce Node ${tag_name:-latest} (${os}-${arch})..."
 curl -sSL "$download_url" -o "$tmp"
 chmod +x "$tmp"
 
