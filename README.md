@@ -86,11 +86,22 @@ At any node's prompt: `bal`, `send node1 5000`, `root`, `bal`, `quit`.
    one contribution amount decided by a single member). If your wallet doesn't
    already hold a coin of exactly that size, your node automatically prepares one
    on-chain first, then waits for it to confirm before proceeding — you'll see this
-   happen in your node's output. Once every member has run `dfund`, each node
+   happen in your node's output. `dfund` also records where **your** eventual
+   payout should go: by default a fresh address in this same wallet, or pass one
+   explicitly — `dfund <sats> [fee] <address>` — to send it somewhere else. This is
+   completely separate from your node's protocol identity key; that key is never
+   used as a Bitcoin destination. Once every member has run `dfund`, each node
    automatically restarts to open the funded channel.
-6. **Transact** at the prompt: `bal`, `send <peer> <sats>`, `root`.
+6. **Transact** at the prompt: `bal`, `send <peer> <sats>`. Every payment prints a
+   plain confirmation to every member — "Sent"/"Received"/"Observed" — marked
+   **unconfirmed (pending checkpoint)** until a `root` locks it in. You don't
+   usually need to run `root` yourself: a node automatically proposes one once
+   enough unconfirmed payments build up (tune with `-auto-root-depth`), and it
+   still works as a manual command any time you don't want to wait.
 7. **Exit / take money out** — any member types `coopclose`; everyone co-signs one
-   closing transaction paying each member their current balance to their own wallet.
+   closing transaction paying each member out to the settlement address they chose
+   during `dfund`. The full settlement (who gets what, and the fee) prints before
+   broadcasting, so you can verify it matches what you expect.
 
 ## Command reference
 
@@ -99,7 +110,7 @@ At any node's prompt: `bal`, `send node1 5000`, `root`, `bal`, `quit`.
 | Command | What it does |
 |---|---|
 | `init` | Generate cluster configs. `-distributed` = shareless (recommended); `-hosts`; `-nodes`, `-base-port`, `-balance`. |
-| `run` | Run a node. `-config <file>` (required); `-wallet <name>` (enables funding); `-enforce` (self-protection). |
+| `run` | Run a node. `-config <file>` (required); `-wallet <name>` (enables funding); `-enforce` (self-protection); `-auto-root-depth <N>` (override the automatic-checkpoint threshold; 0 disables it); `-auto-root-fallback <dur>` (override the fallback-proposer timing); `-verbose` (print internal protocol diagnostics). |
 | `fund` / `close` | Coordinator-run funding/closing — one machine holds all wallets, for demos/testing only. Prefer `dfund`/`coopclose` for real use. |
 
 **Prompt commands** inside `run`:
@@ -107,11 +118,11 @@ At any node's prompt: `bal`, `send node1 5000`, `root`, `bal`, `quit`.
 | Command | What it does |
 |---|---|
 | `keygen` | Generate the group key distributed-ly (shareless clusters) |
-| `dfund <amountSat> [fee]` | Commit YOUR OWN contribution (any amount, in sat) from your own wallet |
+| `dfund <amountSat> [fee] [address]` | Commit YOUR OWN contribution (any amount, in sat) from your own wallet; optionally choose your close payout destination |
 | `send <peer> <sats>` | Pay another member |
-| `root` | Finalize a checkpoint (locks in payments) |
+| `root` | Finalize a checkpoint (locks in payments) — usually automatic, see above |
 | `bal` | Show balances |
-| `coopclose [fee]` | Cooperatively close to real payouts |
+| `coopclose [fee]` | Cooperatively close — pays each member out to their chosen settlement address, printing the full settlement before broadcasting |
 | `cond <connector> <destHE> <receiver> <sats> <timeout>` | Multi-hop payment across hyperedges |
 | `watch <heID> <txid> <vout>` | Watch a funding output on-chain |
 | `quit` | Shut down (Ctrl-C also works) |
@@ -135,3 +146,8 @@ At any node's prompt: `bal`, `send node1 5000`, `root`, `bal`, `quit`.
 - This distribution is binary-only: since the source isn't published yet, you are
   trusting that this binary matches its claimed behavior. Source will be made public
   in the future.
+- **Migration note (v0.1.6+):** `dfund` now records a settlement destination for
+  each member. A hyperedge funded with an older version has no destination on file,
+  and `coopclose` will refuse to run rather than guess — you'll need to add a
+  `settlement_pkscript` (hex-encoded scriptPubKey) to each peer entry in every
+  member's config file before closing such a cluster.
