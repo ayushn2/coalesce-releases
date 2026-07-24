@@ -63,7 +63,7 @@ cat <<EOF
 Installation successful.
 
 Next steps:
-  1. Start a Bitcoin signet node:
+  1. Ensure a Bitcoin signet node is running and RPC is accessible:
        bitcoind -signet
   2. Create a distributed cluster:
        coalesce-node init -dir ./cluster -nodes 3 -distributed -hosts "host1:9000,host2:9000,host3:9000"
