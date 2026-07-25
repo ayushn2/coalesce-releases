@@ -79,7 +79,13 @@ At any node's prompt: `bal`, `send node1 5000`, `root`, `bal`, `quit`.
    `-enforce` turns on self-protection — recommended for real use.
 4. **Once everyone is running**, any member types `keygen` to generate the group
    key via a dealerless, distributed protocol — no machine ever holds the full key.
-   Each node automatically restarts itself afterward to load its new share.
+   Each node automatically restarts itself afterward to load its new share. Every
+   member keeps re-announcing the start of this ceremony for a couple of minutes,
+   so a peer that missed the very first trigger (still connecting, a brief network
+   hiccup) still gets a chance to join. If keygen still seems stuck with no
+   progress after a couple of minutes, it's safest to Ctrl-C every node and retry
+   from scratch — the key-generation round itself doesn't yet retry a dropped
+   message on its own once underway.
 5. **Fund the channel** — every member independently types `dfund <sats>` at their
    own prompt with **whatever amount they want to commit** (e.g. `dfund 40000`,
    `dfund 2300000` — any value up to their wallet's spendable balance, not just
@@ -99,16 +105,24 @@ At any node's prompt: `bal`, `send node1 5000`, `root`, `bal`, `quit`.
 6. **Transact** at the prompt: `bal`, `send <peer> <sats>`. Before the channel is
    actually funded on-chain, `send`/`cond`/`root`/`coopclose` refuse to run (and
    `bal` shows a clear notice) rather than silently operating on placeholder
-   numbers — wait for `dfund` to fully complete first. Every payment prints a
-   plain confirmation to every member — "Sent"/"Received"/"Observed" — marked
-   **unconfirmed (pending checkpoint)** until a `root` locks it in. You don't
-   usually need to run `root` yourself: a node automatically proposes one once
-   enough unconfirmed payments build up (tune with `-auto-root-depth`), and it
-   still works as a manual command any time you don't want to wait.
+   numbers — wait for `dfund` to fully complete first. Trying to send more than
+   you actually have committed also fails with a clear message instead of silently
+   doing nothing. Every payment prints a plain confirmation to every member —
+   "Sent"/"Received"/"Observed" — marked **unconfirmed (pending checkpoint)** until
+   a `root` locks it in. You don't usually need to run `root` yourself: a node
+   automatically proposes one once enough unconfirmed payments build up (tune with
+   `-auto-root-depth`), and it still works as a manual command any time you don't
+   want to wait. Every member also sees that it independently checked the proposed
+   confirmation against its own records before co-signing — a proposer can never
+   confirm anything by itself.
 7. **Exit / take money out** — any member types `coopclose`; everyone co-signs one
    closing transaction paying each member out to the settlement address they chose
    during `dfund`. The full settlement (who gets what, and the fee) prints before
-   broadcasting, so you can verify it matches what you expect.
+   broadcasting, and each member's node then waits for the closing transaction to
+   actually confirm on-chain before reporting its own final payout and that the
+   hyperedge is closed — not just that it broadcast. `send`/`cond`/`root` refuse
+   to run once any member has requested a close, since anything sent after that
+   point would never be reflected in the (already-signed) closing transaction.
 
 ## Command reference
 
