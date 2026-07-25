@@ -91,8 +91,15 @@ At any node's prompt: `bal`, `send node1 5000`, `root`, `bal`, `quit`.
    explicitly — `dfund <sats> [fee] <address>` — to send it somewhere else. This is
    completely separate from your node's protocol identity key; that key is never
    used as a Bitcoin destination. Once every member has run `dfund`, each node
-   automatically restarts to open the funded channel.
-6. **Transact** at the prompt: `bal`, `send <peer> <sats>`. Every payment prints a
+   automatically restarts to open the funded channel. Each member keeps
+   re-announcing its own deposit/signature every few seconds until the whole
+   ceremony completes, so a peer that missed one broadcast (still connecting,
+   a brief network hiccup) catches up automatically — you don't need to retype
+   `dfund` if another member is slow to respond.
+6. **Transact** at the prompt: `bal`, `send <peer> <sats>`. Before the channel is
+   actually funded on-chain, `send`/`cond`/`root`/`coopclose` refuse to run (and
+   `bal` shows a clear notice) rather than silently operating on placeholder
+   numbers — wait for `dfund` to fully complete first. Every payment prints a
    plain confirmation to every member — "Sent"/"Received"/"Observed" — marked
    **unconfirmed (pending checkpoint)** until a `root` locks it in. You don't
    usually need to run `root` yourself: a node automatically proposes one once
