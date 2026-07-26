@@ -120,9 +120,11 @@ At any node's prompt: `bal`, `send node1 5000`, `root`, `bal`, `quit`.
    during `dfund`. The full settlement (who gets what, and the fee) prints before
    broadcasting, and each member's node then waits for the closing transaction to
    actually confirm on-chain before reporting its own final payout and that the
-   hyperedge is closed — not just that it broadcast. `send`/`cond`/`root` refuse
+   cluster is closed — not just that it broadcast. `send`/`cond`/`root` refuse
    to run once any member has requested a close, since anything sent after that
    point would never be reflected in the (already-signed) closing transaction.
+   All of this uses plain, non-technical wording at the prompt — you won't see
+   protocol jargon like "hyperedge" in normal use, only "cluster."
 
 ## Command reference
 
