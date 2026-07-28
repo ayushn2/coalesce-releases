@@ -62,14 +62,34 @@ At any node's prompt: `bal`, `send node1 5000`, `root`, `bal`, `quit`.
 ```
 
 1. **Get a signet node + funded wallet** — see prerequisite above.
-2. **One member creates the shareless cluster**, listing every participant's real
-   address:
-   ```bash
-   coalesce-node init -dir ./cluster -nodes 3 -distributed \
-     -hosts "1.2.3.4,5.6.7.8,9.10.11.12"
-   ```
-   This produces per-member bundles (`nodeI.json` + `nodeI.key`) — send each
-   participant only their own bundle.
+2. **Create the shareless cluster.** Two ways to do this:
+   - **Recommended:** each participant generates their own identity key locally
+     — no machine, including the one assembling the cluster, ever holds anyone
+     else's private key, not even transiently:
+     ```bash
+     # each member, on their own machine:
+     coalesce-node identity -dir ./me -addr 1.2.3.4:9000   # your own public IP:port
+     # → writes ./me/self.key (PRIVATE, keep it) and ./me/self.pub.json (send this)
+     ```
+     Once everyone has shared their `self.pub.json`, any one member assembles
+     the cluster from those public bundles:
+     ```bash
+     coalesce-node assemble -dir ./cluster \
+       -bundles alice.pub.json,bob.pub.json,carol.pub.json
+     ```
+     This produces `node0.json`, `node1.json`, `node2.json` — none contain any
+     private key material, so they're safe to send back to each participant.
+     Each participant places their own `nodeI.json` next to the `self.key` they
+     generated above.
+   - **Quicker alternative:** one member creates the cluster for everyone,
+     listing every participant's real address:
+     ```bash
+     coalesce-node init -dir ./cluster -nodes 3 -distributed \
+       -hosts "1.2.3.4,5.6.7.8,9.10.11.12"
+     ```
+     This produces per-member bundles (`nodeI.json` + `nodeI.key`) — send each
+     participant only their own bundle. Simpler, but that member's machine
+     transiently holds everyone's identity private key before sending it out.
 3. **Each participant starts their own node**, pointed at their own signet node:
    ```bash
    export COALESCE_BTC_NET=signet
@@ -132,7 +152,9 @@ At any node's prompt: `bal`, `send node1 5000`, `root`, `bal`, `quit`.
 
 | Command | What it does |
 |---|---|
-| `init` | Generate cluster configs. `-distributed` = shareless (recommended); `-hosts`; `-nodes`, `-base-port`, `-balance`. |
+| `identity` | Generate your own identity key locally. `-dir <dir>`; `-addr <host:port>` (your advertised address). Recommended for real, multi-operator setups — pairs with `assemble`. |
+| `assemble` | Assemble a cluster from public identity bundles produced by `identity`. `-dir <dir>`; `-bundles <b0.json,b1.json,...>`; `-quorum <N>` (default: supermajority); `-balance <sats>`. No private key material is ever read or written. |
+| `init` | Generate cluster configs in one step. `-distributed` = shareless; `-hosts`; `-nodes`, `-base-port`, `-balance`. Quicker than `identity`+`assemble`, but the operator running it transiently holds every participant's identity private key. |
 | `run` | Run a node. `-config <file>` (required); `-wallet <name>` (enables funding); `-enforce` (self-protection); `-auto-root-depth <N>` (override the automatic-checkpoint threshold; 0 disables it); `-auto-root-fallback <dur>` (override the fallback-proposer timing); `-verbose` (print internal protocol diagnostics). |
 | `fund` / `close` | Coordinator-run funding/closing — one machine holds all wallets, for demos/testing only. Prefer `dfund`/`coopclose` for real use. |
 
