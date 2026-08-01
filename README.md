@@ -52,7 +52,7 @@ coalesce-node run -config ./demo/node1.json
 coalesce-node run -config ./demo/node2.json
 ```
 
-At any node's prompt: `bal`, `send node1 5000`, `root`, `bal`, `quit`.
+At any node's prompt: `bal`, `send node1 5000`, `propose`, `bal`, `quit`.
 
 ## Real use on signet
 
@@ -62,10 +62,37 @@ At any node's prompt: `bal`, `send node1 5000`, `root`, `bal`, `quit`.
 ```
 
 1. **Get a signet node + funded wallet** — see prerequisite above.
-2. **Create the shareless cluster.** Two ways to do this:
-   - **Recommended:** each participant generates their own identity key locally
-     — no machine, including the one assembling the cluster, ever holds anyone
-     else's private key, not even transiently:
+2. **Create the cluster.** A few ways to do this, from most to least automatic:
+   - **Recommended: `bootstrap`.** Every member agrees out-of-band on everyone's
+     address, then everyone runs one command with the SAME list:
+     ```bash
+     coalesce-node bootstrap -dir ./me -addr 1.2.3.4:9000 \
+       -peers "1.2.3.4:9000,5.6.7.8:9001,9.10.11.12:9002"
+     ```
+     One member is deterministically elected coordinator (every node computes
+     the same answer independently — no voting). Everyone else sends the
+     coordinator their public identity bundle over the network; the
+     coordinator assembles the cluster and sends each member's config back
+     over the same connection — no manual file copying at all. Every
+     connection proves, via a signed challenge-response, that whoever's on the
+     other end really holds the private key for the address they claim.
+   - **Don't personally know the other members? Add `-discover`.** Finds
+     strangers via public Nostr relays instead of a pre-agreed address list —
+     the same way a brand-new Lightning node can open a channel with someone
+     it found on the public network:
+     ```bash
+     coalesce-node bootstrap -dir ./me -addr 1.2.3.4:9000 -discover -want 3 -room "some-memorable-name"
+     ```
+     Only a shared "room" name needs agreeing on (post it anywhere — a forum,
+     a chat), not addresses or keys. Leave `-room` unset to join one shared
+     public pool. This proves you're really talking to whoever holds a given
+     key — it does not vet that they're a specific real-world person you
+     know, since there isn't one to check against for a true stranger; that's
+     the same trust level a first-time Lightning peer has.
+   - **Manual alternative: `identity` + `assemble`.** Same security property
+     (no machine ever holds another member's private key), but you exchange
+     the public bundle files yourself instead of over the network — useful if
+     you want to eyeball what you're assembling, or you're air-gapped:
      ```bash
      # each member, on their own machine:
      coalesce-node identity -dir ./me -addr 1.2.3.4:9000   # your own public IP:port
@@ -81,7 +108,7 @@ At any node's prompt: `bal`, `send node1 5000`, `root`, `bal`, `quit`.
      private key material, so they're safe to send back to each participant.
      Each participant places their own `nodeI.json` next to the `self.key` they
      generated above.
-   - **Quicker alternative:** one member creates the cluster for everyone,
+   - **Quickest alternative:** one member creates the cluster for everyone,
      listing every participant's real address:
      ```bash
      coalesce-node init -dir ./cluster -nodes 3 -distributed \
@@ -123,13 +150,13 @@ At any node's prompt: `bal`, `send node1 5000`, `root`, `bal`, `quit`.
    a brief network hiccup) catches up automatically — you don't need to retype
    `dfund` if another member is slow to respond.
 6. **Transact** at the prompt: `bal`, `send <peer> <sats>`. Before the channel is
-   actually funded on-chain, `send`/`cond`/`root`/`coopclose` refuse to run (and
+   actually funded on-chain, `send`/`cond`/`propose`/`coopclose` refuse to run (and
    `bal` shows a clear notice) rather than silently operating on placeholder
    numbers — wait for `dfund` to fully complete first. Trying to send more than
    you actually have committed also fails with a clear message instead of silently
    doing nothing. Every payment prints a plain confirmation to every member —
    "Sent"/"Received"/"Observed" — marked **unconfirmed (pending checkpoint)** until
-   a `root` locks it in. You don't usually need to run `root` yourself: a node
+   a `propose` locks it in. You don't usually need to run `propose` yourself: a node
    automatically proposes one once enough unconfirmed payments build up (tune with
    `-auto-root-depth`), and it still works as a manual command any time you don't
    want to wait. Every member also sees that it independently checked the proposed
@@ -140,7 +167,7 @@ At any node's prompt: `bal`, `send node1 5000`, `root`, `bal`, `quit`.
    during `dfund`. The full settlement (who gets what, and the fee) prints before
    broadcasting, and each member's node then waits for the closing transaction to
    actually confirm on-chain before reporting its own final payout and that the
-   cluster is closed — not just that it broadcast. `send`/`cond`/`root` refuse
+   cluster is closed — not just that it broadcast. `send`/`cond`/`propose` refuse
    to run once any member has requested a close, since anything sent after that
    point would never be reflected in the (already-signed) closing transaction.
    All of this uses plain, non-technical wording at the prompt — you won't see
@@ -152,9 +179,10 @@ At any node's prompt: `bal`, `send node1 5000`, `root`, `bal`, `quit`.
 
 | Command | What it does |
 |---|---|
-| `identity` | Generate your own identity key locally. `-dir <dir>`; `-addr <host:port>` (your advertised address). Recommended for real, multi-operator setups — pairs with `assemble`. |
+| `bootstrap` | Bootstrap a cluster over the network — no manual file passing at all. `-dir <dir>`; `-addr <host:port>`; `-peers <addr0,addr1,...>` (known members) or `-discover -want <n> [-room <name>]` (find strangers via public Nostr relays); `-quorum <N>`; `-balance <sats>`. Every connection is authenticated with a pubkey-pinned challenge-response. Recommended for real, multi-operator setups. |
+| `identity` | Generate your own identity key locally. `-dir <dir>`; `-addr <host:port>` (your advertised address). Manual alternative to `bootstrap` — pairs with `assemble`. |
 | `assemble` | Assemble a cluster from public identity bundles produced by `identity`. `-dir <dir>`; `-bundles <b0.json,b1.json,...>`; `-quorum <N>` (default: supermajority); `-balance <sats>`. No private key material is ever read or written. |
-| `init` | Generate cluster configs in one step. `-distributed` = shareless; `-hosts`; `-nodes`, `-base-port`, `-balance`. Quicker than `identity`+`assemble`, but the operator running it transiently holds every participant's identity private key. |
+| `init` | Generate cluster configs in one step. `-distributed` = shareless; `-hosts`; `-nodes`, `-base-port`, `-balance`. Quicker than `bootstrap`/`identity`+`assemble`, but the operator running it transiently holds every participant's identity private key. |
 | `run` | Run a node. `-config <file>` (required); `-wallet <name>` (enables funding); `-enforce` (self-protection); `-auto-root-depth <N>` (override the automatic-checkpoint threshold; 0 disables it); `-auto-root-fallback <dur>` (override the fallback-proposer timing); `-verbose` (print internal protocol diagnostics). |
 | `fund` / `close` | Coordinator-run funding/closing — one machine holds all wallets, for demos/testing only. Prefer `dfund`/`coopclose` for real use. |
 
@@ -165,7 +193,7 @@ At any node's prompt: `bal`, `send node1 5000`, `root`, `bal`, `quit`.
 | `keygen` | Generate the group key distributed-ly (shareless clusters) |
 | `dfund <amountSat> [fee] [address]` | Commit YOUR OWN contribution (any amount, in sat) from your own wallet; optionally choose your close payout destination |
 | `send <peer> <sats>` | Pay another member |
-| `root` | Finalize a checkpoint (locks in payments) — usually automatic, see above |
+| `propose` | Finalize a checkpoint (locks in payments) — usually automatic, see above |
 | `bal` | Show balances |
 | `coopclose [fee]` | Cooperatively close — pays each member out to their chosen settlement address, printing the full settlement before broadcasting |
 | `cond <connector> <destHE> <receiver> <sats> <timeout>` | Multi-hop payment across hyperedges |
@@ -188,6 +216,12 @@ At any node's prompt: `bal`, `send node1 5000`, `root`, `bal`, `quit`.
   threshold assumption). A single honest node can always recover its own money.
 - Run with `-enforce` for real use so your node defends itself automatically.
 - Keep your `nodeX.key` file private — it is your identity in the group.
+- `bootstrap -discover` proves you're connecting to whoever holds a given
+  keypair (via a signed challenge-response), not that they're a specific
+  real-world person — the same trust level as a first-time Lightning peer,
+  not a lesser guarantee unique to this feature. `bootstrap`'s discovery
+  publishes small signed ads to public Nostr relays; nothing sensitive is in
+  them (address, pubkey, cluster size), but they are public.
 - This distribution is binary-only: since the source isn't published yet, you are
   trusting that this binary matches its claimed behavior. Source will be made public
   in the future.
