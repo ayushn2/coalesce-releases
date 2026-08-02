@@ -64,10 +64,16 @@ At any node's prompt: `bal`, `send node1 5000`, `propose`, `bal`, `quit`.
 1. **Get a signet node + funded wallet** — see prerequisite above.
 2. **Create the cluster.** A few ways to do this, from most to least automatic:
    - **Recommended: `bootstrap`.** Every member agrees out-of-band on everyone's
-     address, then everyone runs one command with the SAME list:
+     address, then everyone runs one command with the SAME list — pass your
+     signet env vars and `-wallet`/`-enforce` right here too, since `bootstrap`
+     continues straight into running your node, no separate `run` step:
      ```bash
+     export COALESCE_BTC_NET=signet
+     export COALESCE_BTC_HOST=localhost:38332
+
      coalesce-node bootstrap -dir ./me -addr 1.2.3.4:9000 \
-       -peers "1.2.3.4:9000,5.6.7.8:9001,9.10.11.12:9002"
+       -peers "1.2.3.4:9000,5.6.7.8:9001,9.10.11.12:9002" \
+       -wallet mywallet -enforce
      ```
      One member is deterministically elected coordinator (every node computes
      the same answer independently — no voting). Everyone else sends the
@@ -75,13 +81,18 @@ At any node's prompt: `bal`, `send node1 5000`, `propose`, `bal`, `quit`.
      coordinator assembles the cluster and sends each member's config back
      over the same connection — no manual file copying at all. Every
      connection proves, via a signed challenge-response, that whoever's on the
-     other end really holds the private key for the address they claim.
+     other end really holds the private key for the address they claim. Once
+     your own config is written, the SAME command keeps running as your node
+     — `keygen` is immediately typeable at the prompt that appears (skip to
+     step 4 below); `-enforce` is safe to pass here even before the cluster
+     is funded, since it activates automatically once `dfund` completes.
    - **Don't personally know the other members? Add `-discover`.** Finds
      strangers via public Nostr relays instead of a pre-agreed address list —
      the same way a brand-new Lightning node can open a channel with someone
      it found on the public network:
      ```bash
-     coalesce-node bootstrap -dir ./me -addr 1.2.3.4:9000 -discover -want 3 -room "some-memorable-name"
+     coalesce-node bootstrap -dir ./me -addr 1.2.3.4:9000 -discover -want 3 -room "some-memorable-name" \
+       -wallet mywallet -enforce
      ```
      Only a shared "room" name needs agreeing on (post it anywhere — a forum,
      a chat), not addresses or keys. Leave `-room` unset to join one shared
@@ -117,7 +128,10 @@ At any node's prompt: `bal`, `send node1 5000`, `propose`, `bal`, `quit`.
      This produces per-member bundles (`nodeI.json` + `nodeI.key`) — send each
      participant only their own bundle. Simpler, but that member's machine
      transiently holds everyone's identity private key before sending it out.
-3. **Each participant starts their own node**, pointed at their own signet node:
+3. **If you used `bootstrap` above, you're already running — skip to step 4.**
+   This step is only for the `identity`+`assemble`/`init -distributed`
+   alternatives, which only produce a config file and need a separate `run`
+   to actually start the node:
    ```bash
    export COALESCE_BTC_NET=signet
    export COALESCE_BTC_HOST=localhost:38332
@@ -181,7 +195,7 @@ At any node's prompt: `bal`, `send node1 5000`, `propose`, `bal`, `quit`.
 
 | Command | What it does |
 |---|---|
-| `bootstrap` | Bootstrap a cluster over the network — no manual file passing at all. `-dir <dir>`; `-addr <host:port>`; `-peers <addr0,addr1,...>` (known members) or `-discover -want <n> [-room <name>]` (find strangers via public Nostr relays); `-quorum <N>`; `-balance <sats>`. Every connection is authenticated with a pubkey-pinned challenge-response. Recommended for real, multi-operator setups. |
+| `bootstrap` | Set up a cluster over the network and continue straight into running it — no manual file passing, no separate `run` step. `-dir <dir>`; `-addr <host:port>`; `-peers <addr0,addr1,...>` (known members) or `-discover -want <n> [-room <name>]` (find strangers via public Nostr relays); `-quorum <N>`; `-balance <sats>`; `-wallet`/`-enforce`/`-verbose`/`-auto-root-depth`/`-auto-root-fallback` (same as `run`, carried straight through). Every connection is authenticated with a pubkey-pinned challenge-response. Recommended for real, multi-operator setups. |
 | `identity` | Generate your own identity key locally. `-dir <dir>`; `-addr <host:port>` (your advertised address). Manual alternative to `bootstrap` — pairs with `assemble`. |
 | `assemble` | Assemble a cluster from public identity bundles produced by `identity`. `-dir <dir>`; `-bundles <b0.json,b1.json,...>`; `-quorum <N>` (default: supermajority); `-balance <sats>`. No private key material is ever read or written. |
 | `init` | Generate cluster configs in one step. `-distributed` = shareless; `-hosts`; `-nodes`, `-base-port`, `-balance`. Quicker than `bootstrap`/`identity`+`assemble`, but the operator running it transiently holds every participant's identity private key. |
