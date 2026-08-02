@@ -123,7 +123,9 @@ At any node's prompt: `bal`, `send node1 5000`, `propose`, `bal`, `quit`.
    export COALESCE_BTC_HOST=localhost:38332
    coalesce-node run -config nodeI.json -wallet mywallet -enforce
    ```
-   `-enforce` turns on self-protection — recommended for real use.
+   `-enforce` turns on self-protection — recommended for real use. Safe to pass
+   here, before the cluster is even funded — enforcement activates
+   automatically the moment `dfund` completes, no manual restart needed.
 4. **Once everyone is running**, any member types `keygen` to generate the group
    key via a dealerless, distributed protocol — no machine ever holds the full key.
    Each node automatically restarts itself afterward to load its new share. Every
