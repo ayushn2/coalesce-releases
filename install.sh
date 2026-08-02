@@ -36,11 +36,21 @@ fi
 
 tmp="$(mktemp)"
 echo "Downloading Coalesce Node ${tag_name:-latest} (${os}-${arch})..."
-# -# shows a progress bar (GitHub's release-asset redirect can be slow from
-# some networks — with no progress output at all, a slow-but-working
-# download is indistinguishable from a hung one). --retry/--max-time keep a
-# genuinely stuck connection from hanging forever instead of failing clearly.
-if ! curl -#SL --retry 3 --retry-delay 2 --connect-timeout 15 --max-time 180 "$download_url" -o "$tmp"; then
+# GitHub's release-asset redirect can be slow from some networks — with no
+# feedback at all, a slow-but-working download is indistinguishable from a
+# hung one. A carriage-return progress bar (curl -#) isn't reliable when run
+# this way (through curl | bash) — its in-place redraw can come out garbled
+# depending on the terminal. Print plain, sequential status lines instead:
+# these can never corrupt, since each is just a normal new line.
+curl -sSL --retry 3 --retry-delay 2 --connect-timeout 15 --max-time 180 "$download_url" -o "$tmp" &
+curl_pid=$!
+elapsed=0
+while kill -0 "$curl_pid" 2>/dev/null; do
+  sleep 3
+  elapsed=$((elapsed + 3))
+  echo "  ... still downloading (${elapsed}s elapsed)"
+done
+if ! wait "$curl_pid"; then
   echo >&2
   echo "Download failed or timed out. This is usually a network/DNS issue on this" >&2
   echo "machine, not the release itself — try again, or download the asset directly:" >&2
