@@ -36,28 +36,43 @@ fi
 
 tmp="$(mktemp)"
 echo "Downloading Coalesce Node ${tag_name:-latest} (${os}-${arch})..."
+
 # GitHub's release-asset redirect can be slow from some networks — with no
 # feedback at all, a slow-but-working download is indistinguishable from a
-# hung one. A carriage-return progress bar (curl -#) isn't reliable when run
-# this way (through curl | bash) — its in-place redraw can come out garbled
-# depending on the terminal. Print plain, sequential status lines instead:
-# these can never corrupt, since each is just a normal new line.
+# hung one. curl's own progress meter (-#) isn't reliable when run this way
+# (through curl | bash) — it queries the terminal for width/cursor control
+# and can render corrupted when that detection misfires. This renders our
+# OWN fixed-width bar with nothing but a bare carriage return (\r) — no
+# terminal queries, no width detection, nothing for it to get wrong.
+total_size="$(curl -sI -L --max-time 15 "$download_url" 2>/dev/null | tr -d '\r' | grep -i '^content-length:' | tail -1 | awk '{print $2}')"
+
 curl -sSL --retry 3 --retry-delay 2 --connect-timeout 15 --max-time 180 "$download_url" -o "$tmp" &
 curl_pid=$!
-elapsed=0
+bar_width=30
 while kill -0 "$curl_pid" 2>/dev/null; do
-  sleep 3
-  elapsed=$((elapsed + 3))
-  echo "  ... still downloading (${elapsed}s elapsed)"
+  sleep 0.2
+  have="$(wc -c <"$tmp" 2>/dev/null | tr -d ' ')"
+  have="${have:-0}"
+  if [ -n "${total_size:-}" ] && [ "$total_size" -gt 0 ] 2>/dev/null; then
+    pct=$(( have * 100 / total_size ))
+    [ "$pct" -gt 100 ] && pct=100
+    filled=$(( pct * bar_width / 100 ))
+    empty=$(( bar_width - filled ))
+    bar="$(printf '%*s' "$filled" '' | tr ' ' '#')$(printf '%*s' "$empty" '' | tr ' ' '.')"
+    printf '\r  [%s] %3d%%' "$bar" "$pct"
+  else
+    printf '\r  %d KB downloaded' "$(( have / 1024 ))"
+  fi
 done
+printf '\r%*s\r' 50 ""
 if ! wait "$curl_pid"; then
-  echo >&2
   echo "Download failed or timed out. This is usually a network/DNS issue on this" >&2
   echo "machine, not the release itself — try again, or download the asset directly:" >&2
   echo "  https://github.com/${RELEASES_REPO}/releases/download/${tag_name:-latest}/${asset}" >&2
   rm -f "$tmp"
   exit 1
 fi
+echo "Download complete."
 chmod +x "$tmp"
 
 if [ -w "$INSTALL_DIR" ]; then
