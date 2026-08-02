@@ -36,7 +36,18 @@ fi
 
 tmp="$(mktemp)"
 echo "Downloading Coalesce Node ${tag_name:-latest} (${os}-${arch})..."
-curl -sSL "$download_url" -o "$tmp"
+# -# shows a progress bar (GitHub's release-asset redirect can be slow from
+# some networks — with no progress output at all, a slow-but-working
+# download is indistinguishable from a hung one). --retry/--max-time keep a
+# genuinely stuck connection from hanging forever instead of failing clearly.
+if ! curl -#SL --retry 3 --retry-delay 2 --connect-timeout 15 --max-time 180 "$download_url" -o "$tmp"; then
+  echo >&2
+  echo "Download failed or timed out. This is usually a network/DNS issue on this" >&2
+  echo "machine, not the release itself — try again, or download the asset directly:" >&2
+  echo "  https://github.com/${RELEASES_REPO}/releases/download/${tag_name:-latest}/${asset}" >&2
+  rm -f "$tmp"
+  exit 1
+fi
 chmod +x "$tmp"
 
 if [ -w "$INSTALL_DIR" ]; then
