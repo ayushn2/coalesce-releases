@@ -101,12 +101,13 @@ Installation successful.
 Next steps:
   1. Ensure a Bitcoin signet node is running and RPC is accessible:
        bitcoind -signet
-  2. Create a cluster (every member runs this with the same -peers list):
-       coalesce-node bootstrap -dir ./me -addr <your host:port> -peers "addr0,addr1,addr2"
-  3. Start your node — -enforce is safe to pass from the very start; it
-     activates automatically once the cluster is funded, no restart needed:
-       coalesce-node run -config ./me/nodeI.json -wallet <yourwallet> -enforce
-  4. At the prompt: keygen, then dfund to fund the cluster (both auto-restart
+  2. Every member runs this with the same -peers list — it sets up the
+     cluster AND continues straight into running your node, no separate
+     `run` step. -enforce is safe to pass from the very start; it activates
+     automatically once the cluster is funded, no restart needed:
+       coalesce-node bootstrap -dir ./me -addr <your host:port> \
+         -peers "addr0,addr1,addr2" -wallet <yourwallet> -enforce
+  3. At the prompt: keygen, then dfund to fund the cluster (both auto-restart
      on their own).
 
 Run 'coalesce-node --help' any time to see all subcommands.
