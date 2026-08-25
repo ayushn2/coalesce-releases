@@ -99,7 +99,7 @@ At any node's prompt: `bal`, `send node1 5000`, `propose`, `bal`, `quit`.
 
 | Method | When | Trade-off |
 |---|---|---|
-| `bootstrap -discover -want <n> [-room <name>]` | You don't know the other members — find strangers via public Nostr relays | Same trust level as a first-time Lightning peer: proves key ownership, not real-world identity |
+| `bootstrap -discover -want <n> [-room <name>]` | You don't know the other members — find strangers via public Nostr relays | Proves key ownership via signed challenge-response, not real-world identity |
 | `identity` + `assemble` | You want to inspect every bundle yourself, or you're air-gapped | Manual file passing; same no-shared-private-keys property |
 | `init -distributed -hosts ...` | One trusted operator sets up everyone (demos) | That machine transiently holds every member's identity key |
 
@@ -170,10 +170,10 @@ jargon), so these are the only behaviors worth knowing in advance:
 - Keep your `nodeX.key` file private — it is your identity in the group.
 - `bootstrap -discover` proves you're connecting to whoever holds a given
   keypair (via a signed challenge-response), not that they're a specific
-  real-world person — the same trust level as a first-time Lightning peer,
-  not a lesser guarantee unique to this feature. `bootstrap`'s discovery
-  publishes small signed ads to public Nostr relays; nothing sensitive is in
-  them (address, pubkey, cluster size), but they are public.
+  real-world person — the inherent limit of meeting any stranger over a
+  network, not a lesser guarantee unique to this feature. `bootstrap`'s
+  discovery publishes small signed ads to public Nostr relays; nothing
+  sensitive is in them (address, pubkey, cluster size), but they are public.
 - This distribution is binary-only: since the source isn't published yet, you are
   trusting that this binary matches its claimed behavior. Source will be made public
   in the future.
