@@ -56,152 +56,73 @@ At any node's prompt: `bal`, `send node1 5000`, `propose`, `bal`, `quit`.
 
 ## Real use on signet
 
-```
-   set up keys   →   put money in   →   transact   →   take money out
-   (keygen/init)     (fund/dfund)       (run)          (close/coopclose)
+```text
+   form cluster   →   group key   →   put money in   →   transact   →   take money out
+   (bootstrap)        (keygen)        (dfund)            (send)         (coopclose)
 ```
 
 1. **Get a signet node + funded wallet** — see prerequisite above.
-2. **Create the cluster.** A few ways to do this, from most to least automatic:
-   - **Recommended: `bootstrap`.** Every member agrees out-of-band on everyone's
-     address, then everyone runs one command with the SAME list — pass your
-     signet env vars and `-wallet`/`-enforce` right here too, since `bootstrap`
-     continues straight into running your node, no separate `run` step:
-     ```bash
-     export COALESCE_BTC_NET=signet
-     export COALESCE_BTC_HOST=localhost:38332
+2. **Form the cluster with `bootstrap`.** Everyone runs one command with the
+   SAME `-peers` list; it exchanges public identity bundles over authenticated
+   connections (no private key ever crosses the wire, no manual file copying)
+   and continues straight into running your node — no separate `run` step:
 
-     coalesce-node bootstrap -dir ./me -addr 1.2.3.4:9000 \
-       -peers "1.2.3.4:9000,5.6.7.8:9001,9.10.11.12:9002" \
-       -wallet mywallet -enforce
-     ```
-     One member is deterministically elected coordinator (every node computes
-     the same answer independently — no voting). Everyone else sends the
-     coordinator their public identity bundle over the network; the
-     coordinator assembles the cluster and sends each member's config back
-     over the same connection — no manual file copying at all. Every
-     connection proves, via a signed challenge-response, that whoever's on the
-     other end really holds the private key for the address they claim. Once
-     your own config is written, the SAME command keeps running as your node
-     — `keygen` is immediately typeable at the prompt that appears (skip to
-     step 4 below); `-enforce` is safe to pass here even before the cluster
-     is funded, since it activates automatically once `dfund` completes.
-   - **Don't personally know the other members? Add `-discover`.** Finds
-     strangers via public Nostr relays instead of a pre-agreed address list —
-     the same way a brand-new Lightning node can open a channel with someone
-     it found on the public network:
-     ```bash
-     coalesce-node bootstrap -dir ./me -addr 1.2.3.4:9000 -discover -want 3 -room "some-memorable-name" \
-       -wallet mywallet -enforce
-     ```
-     Only a shared "room" name needs agreeing on (post it anywhere — a forum,
-     a chat), not addresses or keys. Leave `-room` unset to join one shared
-     public pool. This proves you're really talking to whoever holds a given
-     key — it does not vet that they're a specific real-world person you
-     know, since there isn't one to check against for a true stranger; that's
-     the same trust level a first-time Lightning peer has.
-   - **Manual alternative: `identity` + `assemble`.** Same security property
-     (no machine ever holds another member's private key), but you exchange
-     the public bundle files yourself instead of over the network — useful if
-     you want to eyeball what you're assembling, or you're air-gapped:
-     ```bash
-     # each member, on their own machine:
-     coalesce-node identity -dir ./me -addr 1.2.3.4:9000   # your own public IP:port
-     # → writes ./me/self.key (PRIVATE, keep it) and ./me/self.pub.json (send this)
-     ```
-     Once everyone has shared their `self.pub.json`, any one member assembles
-     the cluster from those public bundles:
-     ```bash
-     coalesce-node assemble -dir ./cluster \
-       -bundles alice.pub.json,bob.pub.json,carol.pub.json
-     ```
-     This produces `node0.json`, `node1.json`, `node2.json` — none contain any
-     private key material, so they're safe to send back to each participant.
-     Each participant places their own `nodeI.json` next to the `self.key` they
-     generated above.
-   - **Quickest alternative:** one member creates the cluster for everyone,
-     listing every participant's real address:
-     ```bash
-     coalesce-node init -dir ./cluster -nodes 3 -distributed \
-       -hosts "1.2.3.4,5.6.7.8,9.10.11.12"
-     ```
-     This produces per-member bundles (`nodeI.json` + `nodeI.key`) — send each
-     participant only their own bundle. Simpler, but that member's machine
-     transiently holds everyone's identity private key before sending it out.
-3. **If you used `bootstrap` above, you're already running — skip to step 4.**
-   This step is only for the `identity`+`assemble`/`init -distributed`
-   alternatives, which only produce a config file and need a separate `run`
-   to actually start the node:
    ```bash
    export COALESCE_BTC_NET=signet
    export COALESCE_BTC_HOST=localhost:38332
-   coalesce-node run -config nodeI.json -wallet mywallet -enforce
-   ```
-   `-enforce` turns on self-protection — recommended for real use. Safe to pass
-   here, before the cluster is even funded — enforcement activates
-   automatically the moment `dfund` completes, no manual restart needed.
-4. **Once everyone is running**, any member types `keygen` to generate the group
-   key via a dealerless, distributed protocol — no machine ever holds the full key.
-   Each node automatically restarts itself afterward to load its new share. Every
-   member keeps re-announcing the start of this ceremony for a couple of minutes,
-   so a peer that missed the very first trigger (still connecting, a brief network
-   hiccup) still gets a chance to join. If keygen still seems stuck with no
-   progress after a couple of minutes, it's safest to Ctrl-C every node and retry
-   from scratch — the key-generation round itself doesn't yet retry a dropped
-   message on its own once underway.
 
-   **Forgot `-wallet`?** If your node is running without one (for example after
-   the automatic post-`keygen` restart of a node started without `-wallet`),
-   type `attach-wallet <name>` at the prompt to wire up your bitcoind wallet
-   live — no restart needed. Passing `-wallet <name>` on the original
-   `bootstrap`/`run` command skips this entirely.
-5. **Fund the channel** — every member independently types `dfund <sats>` at their
-   own prompt with **whatever amount they want to commit** (e.g. `dfund 40000`,
-   `dfund 2300000` — any value up to their wallet's spendable balance, not just
-   one contribution amount decided by a single member). If your wallet doesn't
-   already hold a coin of exactly that size, your node automatically prepares one
-   on-chain first, bidding your own node's live fee estimate so it confirms
-   promptly even when signet is congested, then waits for it to confirm before
-   proceeding — you'll see this in your node's output, with a warning every 10
-   minutes if it's still waiting. `dfund` also records where **your** eventual
-   payout should go: by default a fresh address in this same wallet, or pass one
-   explicitly — `dfund <sats> [fee] <address>` — to send it somewhere else. This is
-   completely separate from your node's protocol identity key; that key is never
-   used as a Bitcoin destination. Once every member has run `dfund`, each node
-   automatically restarts to open the funded channel. Each member keeps
-   re-announcing its own deposit/signature every few seconds until the whole
-   ceremony completes, so a peer that missed one broadcast (still connecting,
-   a brief network hiccup) catches up automatically — you don't need to retype
-   `dfund` if another member is slow to respond.
-6. **Transact** at the prompt: `bal`, `send <peer> <sats>`. Before the channel is
-   actually funded on-chain, `send`/`cond`/`propose`/`coopclose` refuse to run (and
-   `bal` shows a clear notice) rather than silently operating on placeholder
-   numbers — wait for `dfund` to fully complete first. Trying to send more than
-   you actually have committed fails immediately with the exact
-   committed / pending / available figures instead of silently doing nothing.
-   Every payment prints a plain confirmation to every member —
-   "Sent"/"Received"/"Observed" — marked **unconfirmed (pending checkpoint)** until
-   a `propose` locks it in. You don't usually need to run `propose` yourself: a node
-   automatically proposes one once enough unconfirmed payments build up (tune with
-   `-auto-root-depth`), and it still works as a manual command any time you don't
-   want to wait. Every member also sees that it independently checked the proposed
-   confirmation against its own records before co-signing — a proposer can never
-   confirm anything by itself.
-7. **Exit / take money out** — any member types `coopclose`; everyone co-signs one
-   closing transaction paying each member out to the settlement address they chose
-   during `dfund`. The full settlement (who gets what, and the fee) prints before
-   broadcasting, and each member's node then waits for the closing transaction to
-   actually confirm on-chain before reporting its own final payout and that the
-   cluster is closed — not just that it broadcast. `send`/`cond`/`propose` refuse
-   to run once any member has requested a close, since anything sent after that
-   point would never be reflected in the (already-signed) closing transaction.
-   Once the close confirms, the cluster is **permanently, durably closed**:
-   `bal` reports the final payouts actually paid on-chain (labeled "final, paid
-   on-chain") instead of the old off-chain figures, further `coopclose` attempts
-   are refused, and this survives restarts — a restarted node shows a CLOSED
-   banner instead of reopening the channel as live.
-   All of this uses plain, non-technical wording at the prompt — you won't see
-   protocol jargon like "hyperedge" in normal use, only "cluster."
+   coalesce-node bootstrap -dir ./me -addr 1.2.3.4:9000 \
+     -peers "1.2.3.4:9000,5.6.7.8:9001,9.10.11.12:9002" \
+     -wallet mywallet -enforce
+   ```
+
+   `-enforce` (self-protection, recommended) is safe to pass now — it
+   activates automatically once the cluster is funded. Forgot `-wallet`? Type
+   `attach-wallet <name>` at the prompt later — no restart needed.
+3. **Generate the group key** — once everyone is running, any member types
+   `keygen`. Dealerless: no machine ever holds the full key. Each node
+   restarts itself automatically to load its share.
+4. **Fund the channel** — every member independently types `dfund <sats>` with
+   whatever amount THEY want to commit (any value up to their wallet balance).
+   Your payout destination defaults to this same wallet; override with
+   `dfund <sats> [fee] <address>`. Once every member has run `dfund`, each
+   node restarts automatically into the funded channel.
+5. **Transact** — `bal`, `send <peer> <sats>`. Checkpoints finalize
+   automatically (`propose` forces one early).
+6. **Take money out** — any member types `coopclose`. Everyone co-signs one
+   closing transaction; the full settlement prints before broadcasting, and
+   your node reports your final payout once it confirms. The cluster is then
+   permanently closed — `bal` shows the final on-chain payouts, further
+   sends/closes are refused, and this survives restarts.
+
+### Other ways to form a cluster
+
+| Method | When | Trade-off |
+|---|---|---|
+| `bootstrap -discover -want <n> [-room <name>]` | You don't know the other members — find strangers via public Nostr relays | Same trust level as a first-time Lightning peer: proves key ownership, not real-world identity |
+| `identity` + `assemble` | You want to inspect every bundle yourself, or you're air-gapped | Manual file passing; same no-shared-private-keys property |
+| `init -distributed -hosts ...` | One trusted operator sets up everyone (demos) | That machine transiently holds every member's identity key |
+
+These produce config files only — start your node afterward with
+`coalesce-node run -config nodeI.json -wallet mywallet -enforce`. See
+`coalesce-node <cmd> -h` for flags.
+
+### What to expect at the prompt
+
+The prompt narrates everything in plain wording ("cluster", not protocol
+jargon), so these are the only behaviors worth knowing in advance:
+
+- **Ceremonies tolerate stragglers.** `keygen` and `dfund` re-announce for a
+  while, so a briefly-disconnected peer catches up — don't retype commands.
+  If `keygen` makes no progress for a couple of minutes, Ctrl-C every node
+  and retry.
+- **`dfund` may put one prep transaction on-chain first** (to make a coin of
+  your exact amount), bidding your node's live fee estimate; it warns every
+  10 minutes if confirmation is slow.
+- **Nothing runs on placeholder numbers.** Before funding completes,
+  `send`/`propose`/`coopclose` refuse; over-balance sends are refused with
+  exact figures; payments show as "unconfirmed (pending checkpoint)" until a
+  checkpoint locks them in; a proposer can never confirm anything by itself.
 
 ## Command reference
 
