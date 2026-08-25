@@ -94,7 +94,7 @@ else
   echo "Warning: could not verify binary — 'coalesce-node version' produced no output." >&2
 fi
 
-cat <<EOF
+cat <<'EOF'
 
 Installation successful.
 
