@@ -13,7 +13,12 @@ key share and wallet.
 curl -sSL https://raw.githubusercontent.com/ayushn2/coalesce-releases/main/install.sh | bash
 ```
 
-Detects your OS/arch and installs `coalesce-node` to `/usr/local/bin`.
+Detects your OS/arch and installs `coalesce-node` — **never with sudo**. It
+picks a directory that is already on your PATH and writable by your user
+(e.g. Homebrew's bin dir), so on most machines there's nothing else to do;
+only if no such directory exists does it fall back to `~/.local/bin` and
+print the one-line PATH addition. Pick the location yourself with
+`COALESCE_INSTALL_DIR=<dir>`.
 
 Windows users: download the `.exe` asset directly from the [Releases](https://github.com/ayushn2/coalesce-releases/releases) page.
 

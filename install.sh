@@ -5,7 +5,38 @@ set -euo pipefail
 
 RELEASES_REPO="${COALESCE_RELEASES_REPO:-ayushn2/coalesce-releases}"
 BIN_NAME="coalesce-node"
-INSTALL_DIR="${COALESCE_INSTALL_DIR:-/usr/local/bin}"
+
+# Pick the install directory — never with sudo. This script deliberately does
+# not escalate privileges: you're piping it from the internet, and it should
+# not write anywhere your user can't already write. To avoid needing a PATH
+# edit either, prefer a directory that is ALREADY on your PATH and writable —
+# on most developer machines Homebrew's bin dir (user-owned) qualifies. Only
+# when nothing on PATH is writable do we fall back to ~/.local/bin and print
+# the one-line PATH addition.
+on_path() { case ":$PATH:" in *":$1:"*) return 0 ;; *) return 1 ;; esac; }
+
+if [ -n "${COALESCE_INSTALL_DIR:-}" ]; then
+  INSTALL_DIR="$COALESCE_INSTALL_DIR"
+else
+  INSTALL_DIR=""
+  for d in /opt/homebrew/bin /usr/local/bin "$HOME/.local/bin" "$HOME/bin"; do
+    if on_path "$d" && [ -d "$d" ] && [ -w "$d" ]; then
+      INSTALL_DIR="$d"
+      break
+    fi
+  done
+  if [ -z "$INSTALL_DIR" ]; then
+    # Last resort: any writable directory already on PATH (skip relative
+    # entries and anything outside HOME or the standard prefixes).
+    IFS=':' read -ra _path_dirs <<< "$PATH"
+    for d in "${_path_dirs[@]}"; do
+      case "$d" in
+        "$HOME"/*|/usr/local/*|/opt/*) [ -d "$d" ] && [ -w "$d" ] && { INSTALL_DIR="$d"; break; } ;;
+      esac
+    done
+  fi
+  [ -z "$INSTALL_DIR" ] && INSTALL_DIR="$HOME/.local/bin"
+fi
 
 os="$(uname -s | tr '[:upper:]' '[:lower:]')"
 arch="$(uname -m)"
@@ -75,16 +106,30 @@ fi
 echo "Download complete."
 chmod +x "$tmp"
 
-if [ -w "$INSTALL_DIR" ]; then
-  mv "$tmp" "${INSTALL_DIR}/${BIN_NAME}"
-else
-  echo "Elevated permission needed to write to ${INSTALL_DIR}"
-  sudo mv "$tmp" "${INSTALL_DIR}/${BIN_NAME}"
+mkdir -p "$INSTALL_DIR"
+if [ ! -w "$INSTALL_DIR" ]; then
+  echo "Cannot write to ${INSTALL_DIR}. This installer never uses sudo." >&2
+  echo "Re-run with a directory you own, e.g.:" >&2
+  echo "  COALESCE_INSTALL_DIR=\$HOME/.local/bin bash install.sh" >&2
+  rm -f "$tmp"
+  exit 1
 fi
+mv "$tmp" "${INSTALL_DIR}/${BIN_NAME}"
 
 echo
 echo "Installed Coalesce Node ${tag_name:-unknown}"
 echo "Location: ${INSTALL_DIR}/${BIN_NAME}"
+
+# If the chosen directory isn't on PATH, say exactly how to fix it.
+case ":$PATH:" in
+  *":${INSTALL_DIR}:"*) ;;
+  *)
+    echo
+    echo "NOTE: ${INSTALL_DIR} is not on your PATH. Add it with:"
+    echo "  echo 'export PATH=\"${INSTALL_DIR}:\$PATH\"' >> ~/.zshrc && source ~/.zshrc"
+    echo "(use ~/.bashrc if you use bash)"
+    ;;
+esac
 
 # Verify the binary actually runs and reports the expected version.
 installed_version="$("${INSTALL_DIR}/${BIN_NAME}" version 2>/dev/null || true)"
