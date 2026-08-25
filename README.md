@@ -149,13 +149,21 @@ At any node's prompt: `bal`, `send node1 5000`, `propose`, `bal`, `quit`.
    progress after a couple of minutes, it's safest to Ctrl-C every node and retry
    from scratch — the key-generation round itself doesn't yet retry a dropped
    message on its own once underway.
+
+   **Forgot `-wallet`?** If your node is running without one (for example after
+   the automatic post-`keygen` restart of a node started without `-wallet`),
+   type `attach-wallet <name>` at the prompt to wire up your bitcoind wallet
+   live — no restart needed. Passing `-wallet <name>` on the original
+   `bootstrap`/`run` command skips this entirely.
 5. **Fund the channel** — every member independently types `dfund <sats>` at their
    own prompt with **whatever amount they want to commit** (e.g. `dfund 40000`,
    `dfund 2300000` — any value up to their wallet's spendable balance, not just
    one contribution amount decided by a single member). If your wallet doesn't
    already hold a coin of exactly that size, your node automatically prepares one
-   on-chain first, then waits for it to confirm before proceeding — you'll see this
-   happen in your node's output. `dfund` also records where **your** eventual
+   on-chain first, bidding your own node's live fee estimate so it confirms
+   promptly even when signet is congested, then waits for it to confirm before
+   proceeding — you'll see this in your node's output, with a warning every 10
+   minutes if it's still waiting. `dfund` also records where **your** eventual
    payout should go: by default a fresh address in this same wallet, or pass one
    explicitly — `dfund <sats> [fee] <address>` — to send it somewhere else. This is
    completely separate from your node's protocol identity key; that key is never
@@ -169,8 +177,9 @@ At any node's prompt: `bal`, `send node1 5000`, `propose`, `bal`, `quit`.
    actually funded on-chain, `send`/`cond`/`propose`/`coopclose` refuse to run (and
    `bal` shows a clear notice) rather than silently operating on placeholder
    numbers — wait for `dfund` to fully complete first. Trying to send more than
-   you actually have committed also fails with a clear message instead of silently
-   doing nothing. Every payment prints a plain confirmation to every member —
+   you actually have committed fails immediately with the exact
+   committed / pending / available figures instead of silently doing nothing.
+   Every payment prints a plain confirmation to every member —
    "Sent"/"Received"/"Observed" — marked **unconfirmed (pending checkpoint)** until
    a `propose` locks it in. You don't usually need to run `propose` yourself: a node
    automatically proposes one once enough unconfirmed payments build up (tune with
@@ -186,6 +195,11 @@ At any node's prompt: `bal`, `send node1 5000`, `propose`, `bal`, `quit`.
    cluster is closed — not just that it broadcast. `send`/`cond`/`propose` refuse
    to run once any member has requested a close, since anything sent after that
    point would never be reflected in the (already-signed) closing transaction.
+   Once the close confirms, the cluster is **permanently, durably closed**:
+   `bal` reports the final payouts actually paid on-chain (labeled "final, paid
+   on-chain") instead of the old off-chain figures, further `coopclose` attempts
+   are refused, and this survives restarts — a restarted node shows a CLOSED
+   banner instead of reopening the channel as live.
    All of this uses plain, non-technical wording at the prompt — you won't see
    protocol jargon like "hyperedge" in normal use, only "cluster."
 
@@ -206,12 +220,13 @@ At any node's prompt: `bal`, `send node1 5000`, `propose`, `bal`, `quit`.
 
 | Command | What it does |
 |---|---|
-| `keygen` | Generate the group key distributed-ly (shareless clusters) |
-| `dfund <amountSat> [fee] [address]` | Commit YOUR OWN contribution (any amount, in sat) from your own wallet; optionally choose your close payout destination |
-| `send <peer> <sats>` | Pay another member |
+| `keygen` | Generate the group key distributed-ly (shareless clusters). Auto-restarts the node when done. |
+| `attach-wallet <name>` | Wire up a bitcoind wallet for `dfund`, live, if the node wasn't started with `-wallet`. No restart needed. |
+| `dfund <amountSat> [fee] [address]` | Commit YOUR OWN contribution (any amount, in sat) from your own wallet; optionally choose your close payout destination. Auto-restarts once your deposit confirms. |
+| `send <peer> <sats>` | Pay another member. Over-balance sends are refused upfront with exact committed/pending/available figures. |
 | `propose` | Finalize a checkpoint (locks in payments) — usually automatic, see above |
-| `bal` | Show balances |
-| `coopclose [fee]` | Cooperatively close — pays each member out to their chosen settlement address, printing the full settlement before broadcasting |
+| `bal` | Show balances. On a closed cluster, shows the final payouts paid by the close transaction instead. |
+| `coopclose [fee]` | Cooperatively close — pays each member out to their chosen settlement address, printing the full settlement before broadcasting. Refuses on an already-closed cluster. |
 | `cond <connector> <destHE> <receiver> <sats> <timeout>` | Multi-hop payment across hyperedges |
 | `watch <heID> <txid> <vout>` | Watch a funding output on-chain |
 | `quit` | Shut down (Ctrl-C also works) |
