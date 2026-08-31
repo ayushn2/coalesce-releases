@@ -22,6 +22,12 @@ print the one-line PATH addition. Pick the location yourself with
 
 Windows users: download the `.exe` asset directly from the [Releases](https://github.com/ayushn2/coalesce-releases/releases) page.
 
+macOS/Linux users can instead install via Homebrew:
+
+```bash
+brew install ayushn2/tap/coalesce
+```
+
 ## Prerequisite: you need a live signet Bitcoin node
 
 Coalesce runs on Bitcoin **signet** (free test coins, not mainnet). For any real
