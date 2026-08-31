@@ -59,6 +59,16 @@ coalesce-node run -config ./demo/node2.json
 
 At any node's prompt: `bal`, `send node1 5000`, `propose`, `bal`, `quit`.
 
+## Networking
+
+NAT traversal is automatic — no flags, no relay/STUN server to run. If a
+direct connection to a peer isn't reachable, your node falls back to
+hole-punching or relaying through a peer you're already connected to on
+its own. For best connectivity, forward your advertised `-addr host:port`
+for **both TCP and UDP**. To pin the relay listener to a fixed port
+instead of a random one, set `COALESCE_RELAY_PORT` (see environment
+variables below).
+
 ## Real use on signet
 
 ```text
@@ -128,6 +138,12 @@ jargon), so these are the only behaviors worth knowing in advance:
   `send`/`propose`/`coopclose` refuse; over-balance sends are refused with
   exact figures; payments show as "unconfirmed (pending checkpoint)" until a
   checkpoint locks them in; a proposer can never confirm anything by itself.
+- **Startup always re-checks whether the cluster is still open on-chain** —
+  even if you were offline when it closed. If it finds a recognized
+  cooperative close, it reports the final settled payouts itself and `bal`
+  shows those. If it finds a spend it can't recognize, it prints a WARNING
+  and refuses `send`/`propose`/`coopclose` until that's resolved, rather
+  than risk acting on stale balances.
 
 ## Command reference
 
@@ -165,6 +181,7 @@ jargon), so these are the only behaviors worth knowing in advance:
 | `COALESCE_BTC_HOST` | your bitcoind RPC host, e.g. `localhost:38332` |
 | `COALESCE_BTC_COOKIE` | override the cookie path (default: the standard signet cookie) |
 | `COALESCE_BTC_USER` / `COALESCE_BTC_PASS` | RPC user/pass (only if you don't use cookie auth) |
+| `COALESCE_RELAY_PORT` | Pin the relay listener to a fixed port instead of a random one |
 
 ## Safety notes
 
