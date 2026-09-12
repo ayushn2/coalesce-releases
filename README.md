@@ -71,9 +71,33 @@ NAT traversal is automatic — no flags, no relay/STUN server to run. If a
 direct connection to a peer isn't reachable, your node falls back to
 hole-punching or relaying through a peer you're already connected to on
 its own. For best connectivity, forward your advertised `-addr host:port`
-for **both TCP and UDP**. To pin the relay listener to a fixed port
-instead of a random one, set `COALESCE_RELAY_PORT` (see environment
-variables below).
+for **both TCP and UDP** (UDP carries the hole-punch signaling; TCP
+carries the actual connection).
+
+**Set `COALESCE_RELAY_PORT`.** Without it, the relay listener binds a
+random port every time your node starts — a moving target you can't open
+in advance on a firewall. Pinning it to a fixed port lets you open exactly
+that one port, once, and forget about it. Any node may end up relaying
+traffic for another member stuck behind a NAT it can't otherwise escape,
+so open this port even if you don't think you personally need relaying.
+
+### Local machine vs. a cloud VM (EC2, Azure, GCP, ...)
+
+A home router's default is usually "allow outbound, figure out inbound via
+NAT" — which is exactly what the automatic hole-punch/relay fallback
+above is for. A cloud VM's default is the opposite: **its firewall
+(AWS Security Group, Azure NSG, GCP firewall rule, ...) blocks all inbound
+traffic until you explicitly allow it.** If peers can't reach your cloud
+node, check the firewall before anything else.
+
+- **Use the VM's public IP/DNS name for `-addr`, never its private one.**
+  Cloud VMs usually have both; only the public address is reachable by
+  other members over the internet.
+- **Open two ports, both for TCP and UDP:** the port in your `-addr`, and
+  your `COALESCE_RELAY_PORT`. A cloud VM is usually reachable enough that
+  it rarely needs hole-punch/relay for its own inbound connections — but
+  peers behind home NATs may still need it as their relay, so both ports
+  need to be open regardless.
 
 ## Real use on signet
 
