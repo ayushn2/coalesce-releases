@@ -28,6 +28,24 @@ macOS/Linux users can instead install via Homebrew:
 brew install ayushn2/tap/coalesce
 ```
 
+### If `coalesce-node` is not found
+
+On some Linux systems — fresh Ubuntu EC2 instances especially — none of
+the usual writable-and-already-on-PATH directories exist yet, so the
+installer falls back to `~/.local/bin`. That directory often isn't on
+PATH by default there. **The installation still succeeded**; running
+`coalesce-node --version` right after just can't find it yet.
+
+The installer already prints a note when this happens. If you missed it
+or are checking after the fact, add `~/.local/bin` to your PATH:
+
+```bash
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+source ~/.bashrc
+```
+
+(use `~/.zshrc` instead if your shell is zsh)
+
 ## Prerequisite: you need a live signet Bitcoin node
 
 Coalesce runs on Bitcoin **signet** (free test coins, not mainnet). For any real
